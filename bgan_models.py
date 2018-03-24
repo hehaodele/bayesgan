@@ -45,8 +45,8 @@ class BGAN(object):
         
         self.sghmc_noise = {}
         self.noise_std = np.sqrt(2 * self.alpha)
-        for name, dim in self.weight_dims.iteritems():
-            self.sghmc_noise[name] = tf.contrib.distributions.Normal(mu=0., sigma=self.noise_std*tf.ones(self.weight_dims[name]))
+        for name, dim in self.weight_dims.items():
+            self.sghmc_noise[name] = tf.contrib.distributions.Normal(loc=0., scale=self.noise_std*tf.ones(self.weight_dims[name]))
 
         self.K = num_classes # 1 means unsupervised, label == 0 always reserved for fake
 
@@ -110,7 +110,7 @@ class BGAN(object):
             for gi in xrange(self.num_gen):
                 for m in xrange(self.num_mcmc):
                     gen_params = AttributeDict()
-                    for name, shape in self.weight_dims.iteritems():
+                    for name, shape in self.weight_dims.items():
                         gen_params[name] = tf.get_variable("%s_%04d_%04d" % (name, gi, m),
                                                            shape, initializer=tf.random_normal_initializer(stddev=0.02))
                     self.gen_param_list.append(gen_params)
@@ -251,7 +251,7 @@ class BGAN(object):
     def gen_noise(self, gen_params): # for SGHMC
         with tf.variable_scope("generator") as scope:
             noise_loss = 0.0
-            for name, var in gen_params.iteritems():
+            for name, var in gen_params.items():
                 noise_loss += tf.reduce_sum(var * self.sghmc_noise[name].sample())
         noise_loss /= self.dataset_size
         return noise_loss
@@ -271,7 +271,7 @@ class BGAN(object):
         with tf.variable_scope("discriminator") as scope:
             noise_loss = 0.0
             for var in self.d_vars:
-                noise_ = tf.contrib.distributions.Normal(mu=0., sigma=self.noise_std*tf.ones(var.get_shape()))
+                noise_ = tf.contrib.distributions.Normal(loc=0., scale=self.noise_std*tf.ones(var.get_shape()))
                 noise_loss += tf.reduce_sum(var * noise_.sample())
         noise_loss /= self.dataset_size
         return noise_loss
