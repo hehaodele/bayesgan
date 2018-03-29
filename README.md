@@ -14,7 +14,18 @@ The bibliographic information for the paper is
   year={2017}
 }
 ```
+## Changes made
+1. Code the adapted to be compatible with python 3 and latest version of tensorflow 1.9.0.
 
+## Dependencies
+This code has the following dependencies:
+
+- python 3.6
+- tensorflow==1.9.0
+- scikit-learn==0.19.1
+
+
+<!---
 
 ## Contents
 1. [Introduction](#introduction)
@@ -245,3 +256,4 @@ After this preparation is done, we can train the model with, for example,
 ./run_bgan_semi.py --data_path <any_path> --dataset digits --num_gen 10 --num_mcmc 2 
 --out_dir <results path> --train_iter 100000 --save_samples
 ```
+-->
