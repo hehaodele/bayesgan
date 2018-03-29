@@ -1,7 +1,9 @@
-Bayesian Generative Adversarial Networks in Tensorflow
+(Adaptived Version of) Bayesian Generative Adversarial Networks in Tensorflow
 ===============
 
 This repository contains the Tensorflow implementation of the [Bayesian GAN](https://arxiv.org/abs/1705.09558) by Yunus Saatchi and Andrew Gordon Wilson.  This paper will be appearing at NIPS 2017.
+
+Here is the original implementaion: https://github.com/andrewgordonwilson/bayesgan
 
 The bibliographic information for the paper is
 ```bibtex
@@ -243,7 +245,3 @@ After this preparation is done, we can train the model with, for example,
 ./run_bgan_semi.py --data_path <any_path> --dataset digits --num_gen 10 --num_mcmc 2 
 --out_dir <results path> --train_iter 100000 --save_samples
 ```
-
-### Acknowledgements
-
-We thank Pavel Izmailov and Ben Athiwaratkun for help with stress testing this code and creating the tutorial.
