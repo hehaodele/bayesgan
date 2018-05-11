@@ -13,15 +13,21 @@ def conv_out_size_same(size, stride):
 
 
 class BGAN(object):
-    def __init__(self, x_dim, z_dim, dataset_size, batch_size=64, prior_std=1.0, J=1, M=1,
+    def __init__(self,
+                 x_dim = [2],
+                 z_dim = 2,
+                 hidden_size=128,
+                 batch_size=64, prior_std=1.0, J=1, M=1,
                  num_classes=1, alpha=0.01, lr=0.0002,
                  optimizer='adam', wasserstein=False, ml=False):
 
+        self.dataset_size = 10000
         self.batch_size = batch_size
-        self.dataset_size = dataset_size
         self.x_dim = x_dim
         self.z_dim = z_dim
         self.optimizer = optimizer.lower()
+        self.G_hidden_size = hidden_size
+        self.D_hidden_size = 128
 
         self.wasserstein = wasserstein
         if self.wasserstein:
@@ -38,9 +44,11 @@ class BGAN(object):
         if self.ml:
             assert self.num_gen * self.num_mcmc == 1, "cannot have multiple generators in ml mode"
 
-        self.weight_dims = OrderedDict([("g_h0_lin_W", (self.z_dim, 1000)),
-                                        ("g_h0_lin_b", (1000,)),
-                                        ("g_lin_W", (1000, self.x_dim[0])),
+        self.weight_dims = OrderedDict([("g_h0_lin_W", (self.z_dim, self.G_hidden_size)),
+                                        ("g_h0_lin_b", (self.G_hidden_size,)),
+                                        ("g_h1_lin_W", (self.G_hidden_size, self.G_hidden_size)),
+                                        ("g_h1_lin_b", (self.G_hidden_size,)),
+                                        ("g_lin_W", (self.G_hidden_size, self.x_dim[0])),
                                         ("g_lin_b", (self.x_dim[0],))])
 
         self.sghmc_noise = {}
@@ -110,7 +118,7 @@ class BGAN(object):
                     gen_params = AttributeDict()
                     for name, shape in self.weight_dims.items():
                         gen_params[name] = tf.get_variable("%s_%04d_%04d" % (name, gi, m),
-                                                           shape, initializer=tf.random_normal_initializer(stddev=0.02))
+                                                           shape, initializer=tf.random_normal_initializer(stddev=0.1))
                     self.gen_param_list.append(gen_params)
 
         self.D, self.D_logits = self.discriminator(self.inputs, self.K + 1)
@@ -143,7 +151,8 @@ class BGAN(object):
 
         d_loss_fakes = []
         if self.wasserstein:
-            self.d_loss_fake = -tf.reduce_mean(all_d_logits)
+            pass
+            # self.d_loss_fake = -tf.reduce_mean(all_d_logits)
         else:
             constant_labels = np.zeros((self.batch_size, self.K + 1))
             constant_labels[:, 0] = 1.0  # class label indicating it came from generator, aka fake
@@ -200,7 +209,7 @@ class BGAN(object):
             if self.wasserstein:
                 g_loss = tf.reduce_mean(self.generation["d_logits"][gi])
             else:
-                g_loss = -tf.reduce_mean(tf.log((1.0 - self.generation["d_probs"][gi][:, 0]) + 1e-8))
+                g_loss = - tf.reduce_mean(tf.log((1.0 - self.generation["d_probs"][gi][:, 0]) + 1e-8))
             if not self.ml:
                 g_loss += self.generation["g_prior"][gi] + self.generation["g_noise"][gi]
             self.generation["g_losses"].append(g_loss)
@@ -213,7 +222,7 @@ class BGAN(object):
         with tf.variable_scope("discriminator") as scope:
             if reuse:
                 scope.reuse_variables()
-            h0 = lrelu(linear(x, 1000, 'd_lin_0'))
+            h0 = lrelu(linear(x, self.D_hidden_size, 'd_lin_0'), leak=0)
             h1 = linear(h0, K, 'd_lin_1')
             return tf.nn.softmax(h1), h1
 
@@ -223,9 +232,13 @@ class BGAN(object):
 
     def generator(self, z, gen_params):
         with tf.variable_scope("generator") as scope:
-            h0 = lrelu(linear(z, 1000, 'g_h0_lin',
-                              matrix=gen_params.g_h0_lin_W, bias=gen_params.g_h0_lin_b))
-            self.x_ = linear(h0, self.x_dim[0], 'g_lin',
+            h0 = lrelu(linear(z, self.G_hidden_size, 'g_h0_lin',
+                              matrix=gen_params.g_h0_lin_W, bias=gen_params.g_h0_lin_b),
+                       leak=0)
+            h1 = lrelu(linear(h0, self.G_hidden_size, 'g_h1_lin',
+                              matrix=gen_params.g_h1_lin_W, bias=gen_params.g_h1_lin_b),
+                       leak=0)
+            self.x_ = linear(h1, self.x_dim[0], 'g_lin',
                              matrix=gen_params.g_lin_W, bias=gen_params.g_lin_b)
             return self.x_
 
@@ -237,9 +250,9 @@ class BGAN(object):
     def gen_prior(self, gen_params):
         with tf.variable_scope("generator") as scope:
             prior_loss = 0.0
-            # for var in gen_params.values():
-            #     nn = tf.divide(var, self.prior_std)
-            #     prior_loss += tf.reduce_mean(tf.multiply(nn, nn))
+            for var in gen_params.values():
+                nn = tf.divide(var, self.prior_std)
+                prior_loss += tf.reduce_mean(tf.multiply(nn, nn))
 
         prior_loss /= self.dataset_size
 
@@ -248,17 +261,17 @@ class BGAN(object):
     def gen_noise(self, gen_params):  # for SGHMC
         with tf.variable_scope("generator") as scope:
             noise_loss = 0.0
-            # for name, var in gen_params.items():
-            #     noise_loss += tf.reduce_sum(var * self.sghmc_noise[name].sample())
+            for name, var in gen_params.items():
+                noise_loss += tf.reduce_sum(var * self.sghmc_noise[name].sample())
         noise_loss /= self.dataset_size
         return noise_loss
 
     def disc_prior(self):
         with tf.variable_scope("discriminator") as scope:
             prior_loss = 0.0
-            # for var in self.d_vars:
-            #     nn = tf.divide(var, self.prior_std)
-            #     prior_loss += tf.reduce_mean(tf.multiply(nn, nn))
+            for var in self.d_vars:
+                nn = tf.divide(var, self.prior_std)
+                prior_loss += tf.reduce_mean(tf.multiply(nn, nn))
 
         prior_loss /= self.dataset_size
 

@@ -139,13 +139,13 @@ class BDCGAN_Semi(object):
 
 
         for k, v in self.gen_output_dims.items():
-            print "%s: %s" % (k, v)
-        print '****'
+            print("%s: %s" % (k, v))
+        print('****')
         for k, v in self.gen_weight_dims.items():
-            print "%s: %s" % (k, v)
-        print '****'
+            print("%s: %s" % (k, v))
+        print('****')
         for k, v in self.disc_weight_dims.items():
-            print "%s: %s" % (k, v)
+            print("%s: %s" % (k, v))
 
 
 

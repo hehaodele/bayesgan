@@ -18,13 +18,14 @@ from bgan_util import AttributeDict
 from bgan_util import print_images, MnistDataset, CelebDataset, Cifar10, SVHN, ImageNet
 from bgan_semi import BDCGAN_Semi
 
+
 def get_session():
     if tf.get_default_session() is None:
-        print "Creating new session"
+        print("Creating new session")
         tf.reset_default_graph()
         _SESSION = tf.InteractiveSession()
     else:
-        print "Using old session"
+        print("Using old session")
         _SESSION = tf.get_default_session()
 
     return _SESSION
@@ -41,21 +42,20 @@ def get_gan_labels(lbls):
 
 
 def get_supervised_batches(dataset, size, batch_size, class_ids):
-
     def batchify_with_size(sampled_imgs, sampled_labels, size):
         rand_idx = np.random.choice(range(sampled_imgs.shape[0]), size, replace=False)
         imgs_ = sampled_imgs[rand_idx]
         lbls_ = sampled_labels[rand_idx]
         rand_idx = np.random.choice(range(imgs_.shape[0]), batch_size, replace=True)
         imgs_ = imgs_[rand_idx]
-        lbls_ = lbls_[rand_idx] 
+        lbls_ = lbls_[rand_idx]
         return imgs_, lbls_
 
     labeled_image_batches, lblss = [], []
     num_passes = int(ceil(float(size) / batch_size))
-    for _ in xrange(num_passes):
+    for _ in range(num_passes):
         for class_id in class_ids:
-            labeled_image_batch, lbls = dataset.next_batch(int(ceil(float(batch_size)/len(class_ids))),
+            labeled_image_batch, lbls = dataset.next_batch(int(ceil(float(batch_size) / len(class_ids))),
                                                            class_id=class_id)
             labeled_image_batches.append(labeled_image_batch)
             lblss.append(lbls)
@@ -66,18 +66,18 @@ def get_supervised_batches(dataset, size, batch_size, class_ids):
     if size < batch_size:
         labeled_image_batches, lblss = batchify_with_size(labeled_image_batches, lblss, size)
 
-    shuffle_idx = np.arange(lblss.shape[0]); np.random.shuffle(shuffle_idx)
+    shuffle_idx = np.arange(lblss.shape[0]);
+    np.random.shuffle(shuffle_idx)
     labeled_image_batches = labeled_image_batches[shuffle_idx]
     lblss = lblss[shuffle_idx]
 
     while True:
-        i = np.random.randint(max(1, size/batch_size))
-        yield (labeled_image_batches[i*batch_size:(i+1)*batch_size],
-               lblss[i*batch_size:(i+1)*batch_size])
+        i = np.random.randint(max(1, size / batch_size))
+        yield (labeled_image_batches[i * batch_size:(i + 1) * batch_size],
+               lblss[i * batch_size:(i + 1) * batch_size])
 
 
 def get_test_batches(dataset, batch_size):
-
     try:
         test_imgs, test_lbls = dataset.test_imgs, dataset.test_labels
     except:
@@ -86,23 +86,21 @@ def get_test_batches(dataset, batch_size):
     all_test_img_batches, all_test_lbls = [], []
     test_size = test_imgs.shape[0]
     i = 0
-    while (i+1)*batch_size <= test_size:
-        all_test_img_batches.append(test_imgs[i*batch_size:(i+1)*batch_size])
-        all_test_lbls.append(test_lbls[i*batch_size:(i+1)*batch_size])
+    while (i + 1) * batch_size <= test_size:
+        all_test_img_batches.append(test_imgs[i * batch_size:(i + 1) * batch_size])
+        all_test_lbls.append(test_lbls[i * batch_size:(i + 1) * batch_size])
         i += 1
 
     return all_test_img_batches, all_test_lbls
 
 
-
 def get_test_accuracy(session, dcgan, all_test_img_batches, all_test_lbls):
-
     # only need this function because bdcgan has a fixed batch size for *everything*
     # test_size is in number of batches
     all_d_probs, all_s_probs = [], []
     for test_image_batch, test_lbls in zip(all_test_img_batches, all_test_lbls):
         test_d_probs, test_s_probs = session.run([dcgan.test_d_probs, dcgan.test_s_probs],
-                                                   feed_dict={dcgan.test_inputs: test_image_batch})
+                                                 feed_dict={dcgan.test_inputs: test_image_batch})
         ensemble_d_probs = np.concatenate([d_probs_[:, :, None] for d_probs_ in test_d_probs], axis=-1).sum(-1)
         all_d_probs.append(ensemble_d_probs)
         all_s_probs.append(test_s_probs)
@@ -111,21 +109,19 @@ def get_test_accuracy(session, dcgan, all_test_img_batches, all_test_lbls):
     test_s_probs = np.concatenate(all_s_probs)
     test_lbls = np.concatenate(all_test_lbls)
 
-    sup_acc = (100. * np.sum(np.argmax(test_s_probs, 1) == np.argmax(test_lbls, 1)))\
+    sup_acc = (100. * np.sum(np.argmax(test_s_probs, 1) == np.argmax(test_lbls, 1))) \
               / test_lbls.shape[0]
-        
-    semi_sup_acc = (100. * np.sum(np.argmax(test_d_probs, 1) == np.argmax(test_lbls, 1)))\
-              / test_lbls.shape[0]
-        
-    print "Sup acc: %.5f" % (sup_acc)
-    print "Semi-sup acc: %.5f" % (semi_sup_acc)
+
+    semi_sup_acc = (100. * np.sum(np.argmax(test_d_probs, 1) == np.argmax(test_lbls, 1))) \
+                   / test_lbls.shape[0]
+
+    print("Sup acc: %.5f" % (sup_acc))
+    print("Semi-sup acc: %.5f" % (semi_sup_acc))
 
     return sup_acc, semi_sup_acc
-    
 
 
 def b_dcgan(dataset, args):
-
     z_dim = args.z_dim
     x_dim = dataset.x_dim
     batch_size = args.batch_size
@@ -136,15 +132,15 @@ def b_dcgan(dataset, args):
     # due to how much the TF code sucks all functions take fixed batch_size at all times
     dcgan = BDCGAN_Semi(x_dim, z_dim, dataset_size, batch_size=batch_size, J=args.J, J_d=args.J_d, M=args.M,
                         num_layers=args.num_layers,
-                        lr=args.lr, optimizer=args.optimizer, gf_dim=args.gf_dim, 
-                        df_dim=args.df_dim, ml=(args.ml and args.J==1 and args.M==1 and args.J_d==1),
+                        lr=args.lr, optimizer=args.optimizer, gf_dim=args.gf_dim,
+                        df_dim=args.df_dim, ml=(args.ml and args.J == 1 and args.M == 1 and args.J_d == 1),
                         num_classes=dataset.num_classes)
-    
-    print "Starting session"
+
+    print("Starting session")
     session.run(tf.global_variables_initializer())
 
-    print "Starting training loop"
-        
+    print("Starting training loop")
+
     num_train_iter = args.train_iter
 
     if hasattr(dataset, "supervised_batches"):
@@ -159,36 +155,36 @@ def b_dcgan(dataset, args):
                       "sup_d": dcgan.s_optim_adam,
                       "gen": dcgan.g_optims_semi_adam}
 
-    base_learning_rate = args.lr # for now we use same learning rate for Ds and Gs
+    base_learning_rate = args.lr  # for now we use same learning rate for Ds and Gs
     lr_decay_rate = args.lr_decay
     num_disc = args.J_d
-    
+
     for train_iter in range(num_train_iter):
 
         if train_iter == 5000:
-            print "Switching to user-specified optimizer"
+            print("Switching to user-specified optimizer")
             optimizer_dict = {"disc_semi": dcgan.d_optims_semi,
                               "sup_d": dcgan.s_optim,
                               "gen": dcgan.g_optims_semi}
 
         learning_rate = base_learning_rate * np.exp(-lr_decay_rate *
-                                                    min(1.0, (train_iter*batch_size)/float(dataset_size)))
+                                                    min(1.0, (train_iter * batch_size) / float(dataset_size)))
 
-        image_batch, _ = dataset.next_batch(batch_size, class_id=None)       
+        image_batch, _ = dataset.next_batch(batch_size, class_id=None)
         labeled_image_batch, labels = supervised_batches.next()
 
         ### compute disc losses
         batch_z = np.random.uniform(-1, 1, [batch_size, z_dim, dcgan.num_gen])
-        disc_info = session.run(optimizer_dict["disc_semi"] + dcgan.d_losses, # + [dcgan.d_probs] + [dcgan.d_hh],
+        disc_info = session.run(optimizer_dict["disc_semi"] + dcgan.d_losses,  # + [dcgan.d_probs] + [dcgan.d_hh],
                                 feed_dict={dcgan.labeled_inputs: labeled_image_batch,
                                            dcgan.labels: labels,
                                            dcgan.inputs: image_batch,
                                            dcgan.z: batch_z,
                                            dcgan.d_semi_learning_rate: learning_rate})
 
-        d_losses = disc_info[num_disc:num_disc*2]
+        d_losses = disc_info[num_disc:num_disc * 2]
 
-        #print disc_info[num_disc*2:num_disc*3][0][:, 0]
+        # print disc_info[num_disc*2:num_disc*3][0][:, 0]
 
         ### compute generative losses
         batch_z = np.random.uniform(-1, 1, [batch_size, z_dim, dcgan.num_gen])
@@ -204,16 +200,16 @@ def b_dcgan(dataset, args):
 
         if train_iter > 0 and train_iter % args.n_save == 0:
 
-            print "Iter %i" % train_iter
-            print "Disc losses = %s" % (", ".join(["%.2f" % dl for dl in d_losses]))
-            print "Gen losses = %s" % (", ".join(["%.2f" % gl for gl in g_losses]))
-            
+            print("Iter %i" % train_iter)
+            print("Disc losses = %s" % (", ".join(["%.2f" % dl for dl in d_losses])))
+            print("Gen losses = %s" % (", ".join(["%.2f" % gl for gl in g_losses])))
+
             # get test set performance on real labels only for both GAN-based classifier and standard one
             s_acc, ss_acc = get_test_accuracy(session, dcgan, test_image_batches, test_label_batches)
-            print "Sup classification acc: %.2f" % (s_acc)
-            print "Semi-sup classification acc: %.2f" % (ss_acc)
+            print("Sup classification acc: %.2f" % (s_acc))
+            print("Semi-sup classification acc: %.2f" % (ss_acc))
 
-            print "saving results and samples"
+            print("saving results and samples")
 
             results = {"disc_losses": map(float, d_losses),
                        "gen_losses": map(float, g_losses),
@@ -223,17 +219,17 @@ def b_dcgan(dataset, args):
 
             with open(os.path.join(args.out_dir, 'results_%i.json' % train_iter), 'w') as fp:
                 json.dump(results, fp)
-            
+
             if args.save_samples:
-                for zi in xrange(dcgan.num_gen):
+                for zi in range(dcgan.num_gen):
                     _imgs, _ps = [], []
                     for _ in range(10):
                         z_sampler = np.random.uniform(-1, 1, size=(batch_size, z_dim))
-                        sampled_imgs = session.run(dcgan.gen_samplers[zi*dcgan.num_mcmc],
+                        sampled_imgs = session.run(dcgan.gen_samplers[zi * dcgan.num_mcmc],
                                                    feed_dict={dcgan.z_sampler: z_sampler})
                         _imgs.append(sampled_imgs)
                     sampled_imgs = np.concatenate(_imgs)
-                    print_images(sampled_imgs, "B_DCGAN_%i_%.2f" % (zi, g_losses[zi*dcgan.num_mcmc]),
+                    print_images(sampled_imgs, "B_DCGAN_%i_%.2f" % (zi, g_losses[zi * dcgan.num_mcmc]),
                                  train_iter, directory=args.out_dir)
 
                 print_images(image_batch, "RAW", train_iter, directory=args.out_dir)
@@ -246,10 +242,8 @@ def b_dcgan(dataset, args):
                 np.savez_compressed(os.path.join(args.out_dir,
                                                  "weights_%i.npz" % train_iter),
                                     **var_dict)
-            
 
-            print "done"
-        
+            print("done")
 
 
 if __name__ == "__main__":
@@ -265,22 +259,22 @@ if __name__ == "__main__":
                         type=int,
                         default=100,
                         help="every n_save iteration save samples and weights")
-    
+
     parser.add_argument('--z_dim',
                         type=int,
                         default=100,
                         help='dim of z for generator')
-    
+
     parser.add_argument('--gf_dim',
                         type=int,
                         default=64,
                         help='num of gen features')
-    
+
     parser.add_argument('--df_dim',
                         type=int,
                         default=96,
                         help='num of disc features')
-    
+
     parser.add_argument('--data_path',
                         type=str,
                         required=True,
@@ -345,7 +339,7 @@ if __name__ == "__main__":
     parser.add_argument('--save_samples',
                         action="store_true",
                         help="wether to save generated samples")
-    
+
     parser.add_argument('--save_weights',
                         action="store_true",
                         help="wether to save weights")
@@ -354,7 +348,7 @@ if __name__ == "__main__":
                         type=int,
                         default=2222,
                         help="random seed")
-    
+
     parser.add_argument('--lr',
                         type=float,
                         default=0.005,
@@ -370,7 +364,6 @@ if __name__ == "__main__":
                         default="sgd",
                         help="optimizer --- 'adam' or 'sgd'")
 
-    
     args = parser.parse_args()
 
     # set seeds
@@ -378,22 +371,23 @@ if __name__ == "__main__":
     tf.set_random_seed(args.random_seed)
 
     if not os.path.exists(args.out_dir):
-        print "Creating %s" % args.out_dir
+        print("Creating %s" % args.out_dir)
         os.makedirs(args.out_dir)
     args.out_dir = os.path.join(args.out_dir, "bgan_%s_%i" % (args.dataset, int(time.time())))
     os.makedirs(args.out_dir)
 
     import pprint
+
     with open(os.path.join(args.out_dir, "hypers.txt"), "w") as hf:
         hf.write("Hyper settings:\n")
         hf.write("%s\n" % (pprint.pformat(args.__dict__)))
-        
+
     celeb_path = os.path.join(args.data_path, "celebA")
     cifar_path = os.path.join(args.data_path, "cifar-10-batches-py")
     svhn_path = os.path.join(args.data_path, "svhn")
-    mnist_path = os.path.join(args.data_path, "mnist") # can leave empty, data will self-populate
+    mnist_path = os.path.join(args.data_path, "mnist")  # can leave empty, data will self-populate
     imagenet_path = os.path.join(args.data_path, args.dataset)
-    #imagenet_path = os.path.join(args.data_path, "imagenet")
+    # imagenet_path = os.path.join(args.data_path, "imagenet")
 
     if args.dataset == "mnist":
         dataset = MnistDataset(mnist_path)

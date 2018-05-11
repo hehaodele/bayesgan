@@ -22,11 +22,11 @@ from bgan import BDCGAN
 
 def get_session():
     if tf.get_default_session() is None:
-        print "Creating new session"
+        print("Creating new session")
         tf.reset_default_graph()
         _SESSION = tf.InteractiveSession()
     else:
-        print "Using old session"
+        print("Using old session")
         _SESSION = tf.get_default_session()
 
     return _SESSION
@@ -49,10 +49,10 @@ def b_dcgan(dataset, args):
                    df_dim=args.df_dim,
                    ml=(args.ml and args.J==1 and args.M==1 and args.J_d==1))
     
-    print "Starting session"
+    print("Starting session")
     session.run(tf.global_variables_initializer())
 
-    print "Starting training loop"
+    print("Starting training loop")
         
     num_train_iter = args.train_iter
 
@@ -66,7 +66,7 @@ def b_dcgan(dataset, args):
     for train_iter in range(num_train_iter):
 
         if train_iter == 5000:
-            print "Switching to user-specified optimizer"
+            print("Switching to user-specified optimizer")
             optimizer_dict = {"disc": dcgan.d_optims_adam,
                               "gen": dcgan.g_optims_adam}
 
@@ -94,11 +94,11 @@ def b_dcgan(dataset, args):
 
         if train_iter > 0 and train_iter % args.n_save == 0:
 
-            print "Iter %i" % train_iter
-            print "Disc losses = %s" % (", ".join(["%.2f" % dl for dl in d_losses]))
-            print "Gen losses = %s" % (", ".join(["%.2f" % gl for gl in g_losses]))
+            print("Iter %i" % train_iter)
+            print("Disc losses = %s" % (", ".join(["%.2f" % dl for dl in d_losses])))
+            print("Gen losses = %s" % (", ".join(["%.2f" % gl for gl in g_losses])))
             
-            print "saving results and samples"
+            print("saving results and samples")
 
             results = {"disc_losses": map(float, d_losses),
                        "gen_losses": map(float, g_losses),
@@ -108,7 +108,7 @@ def b_dcgan(dataset, args):
                 json.dump(results, fp)
             
             if args.save_samples:
-                for zi in xrange(dcgan.num_gen):
+                for zi in range(dcgan.num_gen):
                     _imgs, _ps = [], []
                     for _ in range(10):
                         z_sampler = np.random.uniform(-1, 1, size=(batch_size, z_dim))
@@ -131,7 +131,7 @@ def b_dcgan(dataset, args):
                                     **var_dict)
             
 
-            print "done"
+            print("done")
         
 
 
@@ -261,7 +261,7 @@ if __name__ == "__main__":
     tf.set_random_seed(args.random_seed)
 
     if not os.path.exists(args.out_dir):
-        print "Creating %s" % args.out_dir
+        print("Creating %s" % args.out_dir)
         os.makedirs(args.out_dir)
     args.out_dir = os.path.join(args.out_dir, "bgan_%s_%i" % (args.dataset, int(time.time())))
     os.makedirs(args.out_dir)

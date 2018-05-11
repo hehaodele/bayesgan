@@ -31,7 +31,7 @@ def print_images(sampled_images, label, index, directory, save_all_samples=False
 
     def unnormalize(img, cdim):
         img_out = np.zeros_like(img)
-        for i in xrange(cdim):
+        for i in range(cdim):
             img_out[:, :, i] = 255. * ((img[:, :, i] + 1.) / 2.0)
         img_out = img_out.astype(np.uint8)
         return img_out
@@ -85,18 +85,21 @@ class FigPrinter():
 
 class SynthDataset():
     def __init__(self, x_dim=100, num_clusters=10, seed=1234):
-        np.random.seed(seed)
+        # np.random.seed(seed)
+        '''virtual size of dataset (for counting epoch)'''
+        self.N = 10000
 
         self.x_dim = x_dim
-        self.N = 10000
         self.true_z_dim = 2
         # generate synthetic data
         self.Xs = []
         for _ in range(num_clusters):
-            cluster_mean = np.random.randn(self.true_z_dim) * 5  # to make them more spread
-            A = np.random.randn(self.x_dim, self.true_z_dim) * 5
+            # cluster_mean = np.random.randn(self.true_z_dim) * 5  # to make them more spread
+            cluster_mean = 0
+            b = np.random.randn(self.x_dim) * 3
+            A = np.random.randn(self.x_dim, self.true_z_dim)
             X = np.dot(np.random.randn(self.N // num_clusters, self.true_z_dim) + cluster_mean,
-                       A.T)
+                       A.T) + b[None, :]
             self.Xs.append(X)
         X_raw = np.concatenate(self.Xs)
         self.X = (X_raw - X_raw.mean(0)) / (X_raw.std(0))
@@ -105,6 +108,64 @@ class SynthDataset():
     def next_batch(self, batch_size):
         rand_idx = np.random.choice(range(self.N), size=(batch_size,), replace=False)
         return self.X[rand_idx]
+
+
+class VeeSynthDataset():
+    def __init__(self, distriubtion='ring', seed=1024, is_infinite=True, datasize=10000):
+        np.random.seed(seed)
+        self.distribution = distriubtion
+        self.N = datasize
+        self.is_infinite = is_infinite
+
+        if distriubtion == 'ring':
+            self.x_dim = 2
+
+            self.ring_thetas = np.arange(8) * np.pi / 4
+
+            self.num_mode = len(self.ring_thetas)
+            self.mode_centers = np.hstack(
+                [np.cos(self.ring_thetas).reshape(-1, 1), np.sin(self.ring_thetas).reshape(-1, 1)])
+            self.sigma = 0.1
+
+        if distriubtion == 'grid':
+            N = 5
+            self.x_dim = 2
+
+            self.grid = np.arange(N).astype(float) * 2
+            self.grid -= self.grid.mean()
+
+            self.num_mode = N * N
+            tmp = []
+            for i in range(N):
+                for j in range(N):
+                    tmp.append([self.grid[i], self.grid[j], ])
+            self.mode_centers = np.array(tmp)
+            self.sigma = 0.1
+
+        mu, sigma = self.get_mean_sigma(self.N)
+        noise = np.random.normal(0, 1, mu.shape)
+        self.X = noise * sigma + mu
+
+    def get_mean_sigma(self, batch_size):
+        mode_idx = np.floor(self.num_mode * np.random.rand(batch_size)).astype(int)
+        mu = self.mode_centers[mode_idx, :]
+        sigma = self.sigma
+        return mu, sigma
+
+    def next_batch(self, batch_size):
+        if self.is_infinite:
+            mu, sigma = self.get_mean_sigma(batch_size)
+            noise = np.random.normal(0, 1, mu.shape)
+            return noise * sigma + mu
+        else:
+            rand_idx = np.random.choice(range(self.N), size=(batch_size,), replace=False)
+            return self.X[rand_idx]
+
+    def visualize(self, sample_size=1000):
+        import matplotlib.pyplot as plt
+        data = self.next_batch(sample_size)
+        plt.scatter(data[:, 0], data[:, 1])
+        plt.show()
 
 
 class MnistDataset():
@@ -200,7 +261,7 @@ class CelebDataset():
             X = imread(img_path)
             Xnorm = np.copy(X).astype(np.float64)
             Xg = np.zeros((X.shape[0], X.shape[1], 1))
-            for i in xrange(3):
+            for i in range(3):
                 Xnorm[:, :, i] /= 255.0
                 Xnorm[:, :, i] = Xnorm[:, :, i] * 2. - 1.
             # Xg[:, :, 0] = 0.2126 * Xnorm[:, :, 0] + 0.7152 * Xnorm[:, :, 1] + 0.0722 * Xnorm[:, :, 2]
@@ -423,7 +484,7 @@ class Cifar10():
 
         self.imgs = []
         self.labels = []
-        for i in xrange(1, 6):
+        for i in range(1, 6):
             batch_name = os.path.join(path, 'data_batch_%i' % i)
             print(batch_name)
             images, labels = process_batch(batch_name)
